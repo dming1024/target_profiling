@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Runtime data and artifacts
+data/
+out/
+
+# Local Claude settings
+.claude/settings.local.json
