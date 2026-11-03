@@ -50,41 +50,52 @@ data_prep/  →  parquet/ + manifest  →  analysis/  →  figures/  →  report
 
 ## 4. 数据层
 
-### 4.1 数据源与本地保留
+### 4.1 数据来源：本地 data lake 优先 + API 缓存
 
-| 维度 | 开放数据源 | 本地保留 |
-|---|---|---|
-| 表达 | GTEx v10、TCGA、DepMap/CCLE、HPA | 组织中位数/IQR、τ；癌种级分位数；细胞系×基因矩阵；HPA nTPM 与定位 |
-| 突变 | TCGA MC3 MAF、gnomAD constraint | 基因×癌种频率与类型谱、蛋白位点聚合、pLI/LOEUF/mis_z |
-| 依赖 | DepMap CRISPRGeneEffect (Chronos) + Model | 基因×细胞系效应矩阵、谱系统计 |
-| 通路/网络 | Reactome、GO、STRING 人类 links (score≥700) | 通路归属/层级、PPI 高置信邻域 |
-| PTM | UniProt curated PTM | 位点表、类型统计、结构域/区域叠加 |
-| 疾病 | Open Targets associatedDiseases、ClinVar、gnomAD | 关联总数/Top/来源分解/时间趋势、致病变异、约束 |
-| 可成药性 | Open Targets tractability/chemicalProbes/drugs | 分级矩阵、探针、已知药物与临床候选 |
-| 安全性 | Open Targets safetyLiabilities、IMPC | 安全事件、小鼠 KO 表型、泛癌必需、表达广度 |
-| 癌症特征 | Open Targets hallmarks、DepMap | hallmarks、驱动基因状态、体细胞突变证据 |
-| 比较基因组 | Open Targets homologues | 直系/旁系同源、序列一致性 |
-| 索引 | HGNC、Ensembl、UniProt | 别名/ID 映射、版本清单 |
+复用 Biomni data lake（`/root/Biomni/Biomni/data/biomni_data/data_lake`）中已下载的数据；lake 未覆盖的源暂用公开 API，按基因缓存。data_prep 将交付所需数据派生为紧凑 parquet + manifest。
 
-### 4.2 落地规则
+| 维度 | v1 数据源 | 访问方式 | 本地保留 |
+|---|---|---|---|
+| 表达 | GTEx（lake: `gtex_tissue_gene_tpm.parquet`，v8）、DepMap 表达（lake）、HPA（lake: `proteinatlas.tsv`） | 本地 | 组织/谱系聚合、HPA 注释 |
+| 突变（体细胞） | cBioPortal REST（TCGA PanCancer 32 研究） | API + 缓存 | 基因×癌种频率、类型谱、蛋白位点 |
+| 突变（胚系） | ClinVar（NCBI eutils） | API + 缓存 | 致病/可能致病变异记录 |
+| 约束 | Open Targets `geneticConstraint` | API + 缓存 | pLI / LOEUF / mis_z |
+| 依赖 | DepMap `DepMap_CRISPRGeneEffect.csv` + `DepMap_Model.csv`（lake） | 本地（转 parquet） | 基因×细胞系效应矩阵、谱系统计 |
+| 通路 | Reactome + GO（Open Targets/Reactome API） | API + 缓存 | 归属 + 层级 + 证据码 |
+| 网络 | STRING `interaction_partners`（人类，score≥700） | API + 缓存 | 高置信邻域、Top 伙伴 |
+| PTM | UniProt REST + InterPro API | API + 缓存 | 位点表、结构域、区域叠加 |
+| 疾病 | Open Targets `associatedDiseases` + ClinVar | API + 缓存 | 关联总数/Top/来源分解/时间趋势 |
+| 可成药性 | Open Targets `tractability/chemicalProbes/drugAndClinicalCandidates` + Broad Repurposing Hub（lake） | API + 缓存 / 本地 | 分级矩阵、探针、药物与临床候选 |
+| 安全性 | Open Targets `safetyLiabilities/mousePhenotypes` | API + 缓存 | 安全事件、小鼠 KO 表型、约束 |
+| 癌症特征 | Open Targets `hallmarks/isEssential/depMapEssentiality` + DepMap | API + 缓存 / 本地 | hallmarks、驱动状态 |
+| 比较基因组 | Open Targets `homologues` | API + 缓存 | 直系/旁系同源、一致性 |
+| 结构可用性 | AlphaFold DB API（仅可用性与 pLDDT） | API + 缓存 | 可用性、pLDDT 摘要 |
+| 索引 | lake `gene_info.parquet` + UniProt/Open Targets `dbXrefs` | 本地 / API + 缓存 | 别名、Ensembl/UniProt 映射、版本清单 |
 
-1. 原始大表流式聚合后立即删除（TCGA 逐癌种下载→算分位数→删；OT parquet 子集化后删原始）
-2. 所有数据源版本、下载日期、校验和、许可写入 `data/manifest.json`，自动渲染到报告附录
-3. `config/licenses.yaml` 维护许可登记表，随报告输出
-4. 报告生成运行时零联网（LLM 除外且可关）
-5. **常驻数据 ≤ 2.5GB；下载临时峰值 ≤ 10GB**。若 OT 数据导致超限，互作表继续只用 STRING，OT 互作不落地（M1 实测确认）
+### 4.2 缓存、离线与落地规则
+
+1. data_prep 把 lake 数据派生为紧凑 parquet（如 DepMap CSV→parquet），写入 `data/manifest.json`（版本、日期、校验和、许可）
+2. API 源按（source, gene, 参数哈希）缓存到 `data/cache/<GENE>/<source>.json|parquet`，记录 URL、抓取时间、HTTP 状态
+3. `run` **先读缓存，缺失才联网抓取并落缓存**；`--offline` 禁止联网，无缓存时该维度降级并在附录标注
+4. `target-profile fetch GENE` 可预先抓取该基因的全部 API 数据，之后 `run --offline` 可完全离线
+5. **本项目派生数据 + 缓存 ≤ 2.5GB**（Biomni lake 不计入，但读取其文件）；无大规模原始下载
+6. 报告附录列出每个维度的来源、版本、缓存日期、是否降级
+7. `config/licenses.yaml` 维护许可登记表，随报告输出
 
 ### 4.3 关键取舍
 
-- TCGA 表达只存癌种级分位数，不存样本矩阵
-- PPI 只存 STRING combined_score ≥ 700 的高置信邻域
+- TCGA 突变走 cBioPortal per-gene 拉取（32 个 PanCancer 研究），不下载 MC3 全量 MAF
+- GTEx 使用 lake 的 v8 聚合数据（原计划 v10）；manifest 标注 v8，后续可替换
+- DepMap 基因效应保留全矩阵以支持共依赖计算（CSV 转 parquet）
+- PPI 只保留 STRING combined_score ≥ 700 的高置信邻域
 - 突变热点仅由 TCGA 计数定义，不用 COSMIC
 
 ### 4.4 许可红线
 
-- 可用：STRING 单物种 links（CC BY 4.0）、HPA（CC BY 4.0，需署名）、Open Targets Platform（CC0，上游 ChEMBL 等逐项标注）、ClinVar（公共领域）、gnomAD（开放）、IMPC（开放）、AlphaFold DB（CC BY 4.0）、GO/GTEx/Reactome/UniProt（CC BY 4.0）
-- 禁用：KEGG、COSMIC/CGC、PhosphoSitePlus、dbPTM、iPTMnet
-- STRING 的 detailed/full 下载（需另签）禁用，只用单物种 links
+- 可用：GTEx/HPA/GO/Reactome/UniProt/InterPro/AlphaFold DB（CC BY 4.0，需署名）、Open Targets Platform（CC0，上游 ChEMBL 等逐项标注）、ClinVar（公共领域）、cBioPortal TCGA 开放数据、STRING 单物种 links（CC BY 4.0）、ClinicalTrials.gov（公共领域）、Broad Repurposing Hub（CC BY 4.0，交付前复核）
+- 禁用/不交付：KEGG、COSMIC/CGC、PhosphoSitePlus、dbPTM、iPTMnet
+- **lake 中的 DisGeNET、OMIM、MSigDB 不作为交付来源**（商业许可不确定/受限），仅开发期参考；交付用 Open Targets + ClinVar + Reactome/GO 替代
+- STRING detailed/full 下载（需另签）禁用，只用单物种 links；API 结果仅存 score≥700 子集
 
 ## 5. 基因解析与上下文
 
@@ -107,12 +118,12 @@ OT functionDescriptions、targetClass、biotype、subcellularLocations、protein
 
 ### 6.2 expression（表达）
 
-GTEx 组织中位数 + IQR、τ 特异性；TCGA 癌种中位数/百分位；CCLE 谱系表达；HPA 共识 nTPM 与 IHC 证据（不用图片）。
-图：GTEx 条形（IQR）、TCGA 点图、CCLE 点图、综合面板。
+GTEx 组织中位数 + 组织内百分位、τ 特异性；DepMap/CCLE 细胞系表达（谱系聚合）；HPA 注释（RNA 特异性、亚细胞定位；不用图片）。
+图：GTEx 条形 + 百分位、CCLE 点图、综合面板。
 
 ### 6.3 mutation（突变）
 
-TCGA MC3 基因×癌种突变率、类型谱、HGVSp 位点聚合；gnomAD pLI/LOEUF/mis_z；UniProt/Pfam 结构域叠加。
+cBioPortal TCGA PanCancer 基因×癌种突变率、类型谱、HGVSp 位点聚合；ClinVar 胚系致病变异；OT geneticConstraint（pLI/LOEUF/mis_z）；UniProt/Pfam 结构域叠加。
 图：泛癌频率条形、癌种×类型堆叠、蛋白 lollipop + 结构域、Top 热点表。
 不预测致病性；热点仅由 TCGA 计数定义。
 
@@ -135,7 +146,7 @@ v1 不做激酶-底物推断（无商用安全可靠源），报告注明局限�
 
 ### 6.7 disease（疾病关联与人类遗传证据）
 
-OT associatedDiseases 总数/Top 疾病/按数据源分解/时间趋势；ClinVar 致病变异；gnomAD 约束。
+OT associatedDiseases 总数/Top 疾病/按数据源分解/时间趋势；ClinVar 致病变异；OT geneticConstraint（pLI/LOEUF）。
 图：Top 疾病关联条形、来源分解、时间趋势。
 
 ### 6.8 tractability（可成药性）
@@ -212,14 +223,15 @@ OT homologues：直系/旁系同源、序列一致性、最近旁系、高置信
 统一入口 `target-profile`（Python 包名 `target-profile`，源码 `src/target_profile/`）：
 
 ```
-target-profile run GENE [--out DIR] [--format html|pdf|both] [--no-llm] [--force]
-target-profile data [all|<source>] [--force]     # 下载+聚合，写 manifest
-target-profile doctor                            # 检查环境、数据完整性、校验和
+target-profile run GENE [--out DIR] [--format html|pdf|both] [--no-llm] [--force] [--offline]
+target-profile fetch GENE [--refresh]            # 预取该基因 API 数据到缓存
+target-profile data [all|<source>] [--force]     # 从 lake 派生 parquet + 写 manifest
+target-profile doctor                            # 检查环境、数据完整性、缓存状态
 target-profile version
 ```
 
 - `GENE` 自动识别 symbol / 别名 / Ensembl / UniProt，报告统一 HGNC 符号
-- `run` 除可选 LLM 润色外全程离线（`--no-llm` 时完全离线）；默认产物 `out/<SYMBOL>_<YYYYMMDD>/`：
+- `run` 缓存优先：缺失 API 数据时联网抓取并落缓存；`--offline` 禁止联网，无缓存维度降级；默认产物 `out/<SYMBOL>_<YYYYMMDD>/`：
   - `report.html`（自包含，图片 base64 内嵌）
   - `report.pdf`
   - `facts.json`（所有结构化事实 + 来源）
@@ -234,6 +246,7 @@ target-profile version
 | 数据文件缺失/校验和不符 | 报错 + 提示 `target-profile data <source>` | 3 |
 | 单维度确实无数据 | 渲染"暂无可用数据"，附录记缺失 | 0 |
 | 单维度计算异常 | 该维度降级 + 警告，继续，写入 run.log 与附录 | 0 |
+| API 抓取失败且无缓存 | 该维度降级 + 警告；`--offline` 下不联网 | 0 |
 | PDF 渲染失败 | 保留 HTML，报错 | 4 |
 | LLM 失败 | 回退模板，脚注标注未使用 LLM | 0 |
 
@@ -280,8 +293,8 @@ target_profiling/
 | 里程碑 | 内容 | 验收标准 |
 |---|---|---|
 | M0 | 仓库骨架：pyproject、包布局、CLI 骨架、config、manifest schema、测试脚手架 | `target-profile --help/version/doctor` 可运行；pytest 空套件通过 |
-| M1 | 垂直切片数据：GTEx 表达 + TCGA 突变 + DepMap 依赖 → parquet + manifest | `target-profile data gtex tcga depmap` 产出带版本/校验和的 parquet；doctor 通过；常驻数据实测 |
-| M2 | 垂直切片全链路：三模块分析 → 图表 → 自包含 HTML → PDF | `target-profile run KRAS --no-llm` 产出 out 目录四件套；KRAS/TP53 人工验收；零联网测试通过 |
+| M1 | 垂直切片数据：lake 派生 GTEx/DepMap/HPA parquet + cBioPortal/STRING/UniProt API 缓存客户端 → manifest | `target-profile data` 与 `target-profile fetch KRAS` 产出缓存与 manifest；doctor 通过；派生数据体积实测 |
+| M2 | 垂直切片全链路：表达/突变/依赖分析 → 图表 → 自包含 HTML → PDF | `target-profile run KRAS --no-llm` 产出 out 目录四件套；KRAS 关键数值与参考项目一致（容差内）；TP53 人工验收；`run --offline` 通过 |
 | M3 | 补齐基础报告：通路/网络、PTM、基因蛋白基础 | 章节 2/4/5/6/7/8 渲染完整 |
 | M4 | Tier1 维度：疾病关联、可成药性、安全性 | 章节 3/9/10 渲染；KRAS 安全性"无记录 ≠ 安全"正确呈现 |
 | M5 | Tier2 + 收尾：癌症特征、比较基因组、执行摘要标签卡、LLM 润色、12 章结构完整、批量接口预留 | 12 章结构齐全（第 12 章为 Tier3 占位说明）；`--no-llm`/`--format`/LLM 回退验证；全测试绿；README 与环境说明 |

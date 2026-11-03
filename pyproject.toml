@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "target-profile"
+version = "0.1.0"
+description = "Single-gene target profiling report generator"
+requires-python = ">=3.13"
+dependencies = [
+  "duckdb>=1.1",
+  "pandas>=2.2",
+  "pyarrow>=17.0",
+  "jinja2>=3.1",
+  "typer>=0.12",
+  "pydantic>=2.8",
+  "pyyaml>=6.0",
+  "httpx[socks]>=0.27",
+  "playwright>=1.47",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-mock>=3.14"]
+
+[project.scripts]
+target-profile = "target_profile.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/target_profile"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

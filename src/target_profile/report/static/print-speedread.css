@@ -1,0 +1,76 @@
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_500_B64__) format("woff2");
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_700_B64__) format("woff2");
+}
+
+@page { size: A4; margin: 12mm; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #fffdf8;
+  color: #39414d;
+  font-family: "Space Grotesk", system-ui, -apple-system, "PingFang SC",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-size: 8.5px;
+  line-height: 1.55;
+}
+.pdf-page {
+  width: 186mm;
+  min-height: 273mm;
+  padding: 6mm 6mm 10mm;
+  background: #fffdf8;
+  page-break-after: always;
+  position: relative;
+  overflow: hidden;
+}
+.pdf-page:last-of-type { page-break-after: auto; }
+h1 { margin: 4mm 0 1mm; font-size: 34px; line-height: 1; color: #0f6b5c; letter-spacing: -.02em; }
+h2 { margin: 0; font-size: 15px; color: #20242c; }
+h3 { margin: 4mm 0 1.5mm; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: #0f6b5c; }
+p { margin: 1mm 0; }
+.page-eyebrow { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 7px; letter-spacing: .18em; text-transform: uppercase; color: #0f6b5c; }
+.page-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1.5px solid #0f6b5c; padding-bottom: 2mm; margin-bottom: 4mm; }
+.page-kicker { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6.5px; letter-spacing: .14em; color: #7b7365; }
+.lede { font-size: 10px; color: #39414d; max-width: 150mm; margin: 2mm 0 3mm; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4mm; }
+.chip { border: 1px solid #e2dbcd; border-radius: 999px; padding: 1px 6px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6.5px; color: #7b7365; }
+.chip-ok { color: #0f6b5c; border-color: #b7d8d0; }
+.chip-warn { color: #9a5b1e; border-color: #e6c9a8; }
+.chip-info { color: #1f4f8f; border-color: #bcd1ee; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 2px solid #20242c; border-bottom: 1px solid #e2dbcd; padding: 2.5mm 0; margin-bottom: 4mm; }
+.kpi { padding: 0 3mm; }
+.kpi:first-child { padding-left: 0; }
+.kpi + .kpi { border-left: 1px solid #e2dbcd; }
+.kpi-label { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6px; letter-spacing: .08em; text-transform: uppercase; color: #7b7365; }
+.kpi-value { font-size: 18px; font-weight: 700; color: #20242c; font-variant-numeric: tabular-nums; }
+.kpi-unit { font-size: 7px; font-weight: 400; color: #7b7365; margin-left: 2px; }
+.groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+.group { border: 1px solid #e2dbcd; background: #fff; padding: 2.5mm 3mm; }
+.group-title { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6.5px; letter-spacing: .1em; text-transform: uppercase; color: #0f6b5c; margin-bottom: 1.5mm; }
+.item { display: flex; justify-content: space-between; gap: 4px; font-size: 7.5px; padding: 1px 0; border-bottom: 1px dotted #ece6da; }
+.item:last-child { border-bottom: none; }
+.item span { color: #7b7365; }
+.item b { color: #20242c; text-align: right; font-weight: 600; }
+.speed-table, .source-table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+.speed-table th, .source-table th { text-align: left; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6px; letter-spacing: .08em; text-transform: uppercase; color: #7b7365; border-bottom: 1px solid #20242c; padding: 1.5mm 1mm; }
+.speed-table td, .source-table td { padding: 1.6mm 1mm; border-bottom: 1px solid #e2dbcd; vertical-align: top; }
+.speed-table th.num, .speed-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.speed-table th:nth-child(4), .speed-table td:nth-child(4) { padding-left: 4mm; }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.chart-grid figure { margin: 0; border: 1px solid #e2dbcd; background: #fff; padding: 2mm; }
+.chart-grid figcaption { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6.5px; color: #7b7365; margin-bottom: 1mm; }
+.chart { width: 100%; height: 52mm; }
+img.chart-snapshot { width: 100%; height: 52mm; object-fit: contain; display: block; }
+ul { margin: 1mm 0 0; padding-left: 4mm; }
+li { margin-bottom: 0.8mm; }
+.page-num { position: absolute; bottom: 4mm; right: 6mm; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 6.5px; color: #7b7365; }

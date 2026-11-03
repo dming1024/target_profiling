@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>{{ gene.symbol }} 靶点画像 · 精简版</title>
+<style>{{ css | safe }}</style>
+</head>
+<body data-theme="print">
+<div class="pdf-page" id="cover">
+  <div class="page-eyebrow">TARGET PROFILE · 靶点全方位画像</div>
+  <h1>{{ gene.symbol }}</h1>
+  <p class="lede">{{ summary.verdict.line }}</p>
+  <div class="chips">
+    {% for chip in summary.verdict.chips %}<span class="chip chip-{{ chip.level }}">{{ chip.text }}</span>{% endfor %}
+  </div>
+  <div class="kpis">
+    {% for kpi in cover_kpis %}
+    <div class="kpi">
+      <div class="kpi-label">{{ kpi.label }}</div>
+      <div class="kpi-value">{{ kpi.value }}{% if kpi.unit %}<span class="kpi-unit">{{ kpi.unit }}</span>{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="groups">
+    {% for group in summary.groups %}
+    <div class="group">
+      <div class="group-title">{{ group.title }}</div>
+      {% for item in group["items"] %}
+      <div class="item"><span>{{ item.label }}</span><b>{{ item.value }}</b></div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="page-num">1 / {{ page_count }}</div>
+</div>
+
+<div class="pdf-page">
+  <div class="page-head"><h2>维度速览</h2><span class="page-kicker">12 DIMENSIONS</span></div>
+  <table class="speed-table">
+    <thead><tr><th>维度</th><th>核心指标</th><th class="num">数值</th><th>状态</th></tr></thead>
+    <tbody>
+    {% for row in speed_rows %}
+    <tr><td>{{ row.title }}</td><td>{{ row.metric }}</td><td class="num">{{ row.value }}</td><td>{{ row.status }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="page-num">2 / {{ page_count }}</div>
+</div>
+
+<div class="pdf-page">
+  <div class="page-head"><h2>核心图表 I</h2><span class="page-kicker">CORE EVIDENCE</span></div>
+  <div class="chart-grid">
+    {% for chart in print_charts[:4] %}
+    <figure><figcaption>{{ chart.title }}</figcaption><div class="chart" data-chart-id="{{ chart.id }}"></div></figure>
+    {% endfor %}
+  </div>
+  <div class="page-num">3 / {{ page_count }}</div>
+</div>
+
+{% if page_count > 4 %}
+<div class="pdf-page">
+  <div class="page-head"><h2>核心图表 II</h2><span class="page-kicker">CORE EVIDENCE</span></div>
+  <div class="chart-grid">
+    {% for chart in print_charts[4:8] %}
+    <figure><figcaption>{{ chart.title }}</figcaption><div class="chart" data-chart-id="{{ chart.id }}"></div></figure>
+    {% endfor %}
+  </div>
+  <div class="page-num">4 / {{ page_count }}</div>
+</div>
+{% endif %}
+
+<div class="pdf-page">
+  <div class="page-head"><h2>数据源与局限</h2><span class="page-kicker">METHODS &amp; LICENSES</span></div>
+  <h3>数据源与许可</h3>
+  <table class="source-table">
+    <thead><tr><th>来源</th><th>许可</th><th>署名</th></tr></thead>
+    <tbody>
+    {% for source in appendix.sources %}
+    <tr><td>{{ source.name }}</td><td>{{ source.license }}</td><td>{{ source.attribution }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <h3>标签阈值</h3>
+  <table class="source-table">
+    <thead><tr><th>标签</th><th>阈值</th></tr></thead>
+    <tbody>
+    {% for item in appendix.thresholds %}
+    <tr><td>{{ item.label }}</td><td>{{ item.value }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <h3>方法学局限</h3>
+  <ul>{% for item in appendix.limitations %}<li>{{ item }}</li>{% endfor %}</ul>
+  <h3>LLM 使用情况</h3>
+  <p>{{ appendix.llm_text }}</p>
+  <div class="page-num">{{ page_count }} / {{ page_count }}</div>
+</div>
+
+<script id="chart-data" type="application/json">{{ chart_payload | tojson }}</script>
+<script>{{ echarts_js | safe }}</script>
+<script>{{ dashboard_js | safe }}</script>
+</body>
+</html>

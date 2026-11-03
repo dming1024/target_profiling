@@ -1,0 +1,38 @@
+sources:
+  gtex:
+    license: CC BY 4.0
+    attribution: "GTEx Consortium"
+  depmap:
+    license: CC BY 4.0
+    attribution: "Broad Institute DepMap"
+  hpa:
+    license: CC BY 4.0
+    attribution: "Human Protein Atlas"
+  cbioportal:
+    license: Open access TCGA data
+    attribution: "cBioPortal / TCGA Research Network"
+  opentargets:
+    license: CC0 1.0 (upstream per-source terms apply)
+    attribution: "Open Targets Platform"
+  uniprot:
+    license: CC BY 4.0
+    attribution: "UniProt Consortium"
+  string:
+    license: CC BY 4.0
+    attribution: "STRING Consortium"
+  clinvar:
+    license: Public domain (NCBI)
+    attribution: "NCBI ClinVar"
+  alphafold:
+    license: CC BY 4.0
+    attribution: "AlphaFold Protein Structure Database"
+  echarts:
+    license: Apache-2.0
+    attribution: "Apache Software Foundation / ECharts contributors"
+  space_grotesk:
+    license: SIL Open Font License 1.1
+    attribution: "Florian Karsten Typefaces"
+not_for_delivery:
+  - DisGeNET
+  - OMIM
+  - MSigDB

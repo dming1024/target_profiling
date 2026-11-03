@@ -1,0 +1,48 @@
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  html, body {
+    background: #ffffff !important;
+    color: #101820 !important;
+    font-size: 11.5px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .bg-grid, .toc, .hero .badges, .reading-progress { display: none !important; }
+  .hero::after, .panel::before, .panel::after { display: none !important; }
+  .shell { display: block !important; max-width: none; padding: 0; }
+  main { max-width: none; padding: 0; }
+  .hero { border-bottom: 1px solid #d6dde6; padding-top: 0; }
+  .hero h1 { color: #0f4d43 !important; -webkit-text-fill-color: #0f4d43; background: none; }
+  .eyebrow { color: #0f6b5c !important; }
+  .hero .subtitle, .badge { color: #475569 !important; }
+  .badge { border-color: #d6dde6; background: #f8fafc; }
+  section { break-inside: avoid-page; margin-bottom: 26px; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .panel, .card, table.dt, table.facts,
+  .kpis, .summary-group, .details, .chip {
+    background: #ffffff !important;
+    border-color: #d6dde6 !important;
+    box-shadow: none !important;
+  }
+  .section-num { color: #0f6b5c !important; border-color: #b7d8d0 !important; }
+  .section-head h2, .block > h3, .block-head h3, .card-value,
+  .kpi-value, .kpi-label, .chart-title, .verdict h3, .verdict-line,
+  .verdict-sub, .summary-group dd, .summary-group dt, .metric-list dt,
+  .metric-list dd, table.dt td, table.facts td {
+    color: #101820 !important;
+  }
+  .card-label, .chart-sub, .group-title, .details summary, .kpi-hint,
+  table.dt th, table.facts th { color: #5b6b7d !important; }
+  .narrative { color: #334155 !important; border-left-color: #0f6b5c !important; }
+  .verdict { background: #f6fbfa !important; border-color: #b7d8d0 !important; }
+  .kpi { border-color: #d6dde6 !important; }
+  .chip-ok { color: #0f6b5c !important; border-color: #b7d8d0 !important; }
+  .chip-warn { color: #7a4a06 !important; border-color: #e6c9a8 !important; }
+  .chip-info { color: #1f4f8f !important; border-color: #bcd1ee !important; }
+  .placeholder-line { background: #f4faf9 !important; color: #475569 !important; }
+  .caveat { color: #7a4a06 !important; background: #fff8ea !important; border-left-color: #c98a12 !important; }
+  .chart-panel, .chart, img.chart-snapshot { break-inside: avoid; page-break-inside: avoid; }
+  .chart { display: none !important; }
+  img.chart-snapshot { width: 100%; margin: 4px 0; }
+  footer { color: #5b6b7d !important; border-top-color: #d6dde6 !important; }
+}

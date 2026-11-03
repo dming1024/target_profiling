@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ gene.symbol }} 靶点画像</title>
+<style>{{ css | safe }}</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="reading-progress" aria-hidden="true"><span></span></div>
+<div class="shell">
+  <aside class="toc">
+    <div class="toc-brand"><span class="dot"></span>TARGET PROFILE</div>
+    <nav>
+      {% for section in sections %}
+      <a href="#{{ section.id }}"><span class="num">{{ "%02d" | format(section.number) }}</span>{{ section.title }}</a>
+      {% endfor %}
+      <a href="#appendix"><span class="num">A</span>附录</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="hero reveal" data-symbol="{{ gene.symbol }}">
+      <div class="eyebrow">TARGET PROFILE · 靶点全方位画像</div>
+      <h1>{{ gene.symbol }}</h1>
+      <p class="subtitle">{{ hero_subtitle }}</p>
+      <div class="hero-chips">
+        {% for chip in hero_chips %}
+        <span class="chip chip-{{ chip.level }}">{{ chip.text }}</span>
+        {% endfor %}
+      </div>
+      <div class="badges">
+        <span class="badge">ENSEMBL · {{ gene.ensembl_id }}</span>
+        {% if gene.uniprot_id %}<span class="badge">UNIPROT · {{ gene.uniprot_id }}</span>{% endif %}
+        {% if gene.chromosome %}<span class="badge">CHR {{ gene.chromosome }}:{{ gene.start }}-{{ gene.end }}</span>{% endif %}
+        <span class="badge">GENERATED · {{ generated_at }}</span>
+      </div>
+    </header>
+
+    {% for section in sections %}
+    <section id="{{ section.id }}" class="reveal">
+      <div class="section-head">
+        <span class="section-num">{{ "%02d" | format(section.number) }}</span>
+        <h2>{{ section.title }}</h2>
+        {% if section.status_chip %}
+        <span class="chip chip-{{ section.status_chip.level }}">{{ section.status_chip.text }}</span>
+        {% endif %}
+      </div>
+
+      {% if section.mode == "placeholder" %}
+      <p class="placeholder-line">暂未包含：药物基因组学 / 文献 / GWAS 证据将在后续版本提供。</p>
+
+      {% elif section.mode == "summary" %}
+      <div class="verdict">
+        <div class="verdict-top">
+          <h3>{{ section.summary.verdict.name }}</h3>
+          {% if section.summary.verdict.subtitle %}<span class="verdict-sub">{{ section.summary.verdict.subtitle }}</span>{% endif %}
+        </div>
+        {% if section.summary.verdict.line %}<p class="verdict-line">{{ section.summary.verdict.line }}</p>{% endif %}
+        <div class="chips">
+          {% for chip in section.summary.verdict.chips %}
+          <span class="chip chip-{{ chip.level }}">{{ chip.text }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="summary-groups">
+        {% for group in section.summary.groups %}
+        <div class="summary-group">
+          <div class="group-title">{{ group.title }}</div>
+          <dl>
+            {% for item in group["items"] %}
+            <dt>{{ item.label }}</dt><dd>{{ item.value }}</dd>
+            {% endfor %}
+          </dl>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% elif section.missing %}
+      <div class="panel empty">
+        <div class="empty-icon">×</div>
+        <p>该章节暂无可用数据。</p>
+      </div>
+
+      {% else %}
+        {% for block in section.blocks %}
+          {% if block.status == "no_data" %}
+          <div class="panel empty">
+            <div class="empty-icon">×</div>
+            <p>暂无可用数据。</p>
+            {% for caveat in block.details.caveats %}<p class="caveat">注：{{ caveat }}</p>{% endfor %}
+          </div>
+          {% else %}
+          <div class="block">
+            {% if section.blocks | length > 1 %}
+            <div class="block-head">
+              <h3>{{ block.title }}</h3>
+              {% if block.status_chip %}<span class="chip chip-{{ block.status_chip.level }}">{{ block.status_chip.text }}</span>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if block.kpis %}
+            <div class="kpis">
+              {% for kpi in block.kpis %}
+              <div class="kpi">
+                <div class="kpi-label">{{ kpi.label }}</div>
+                <div class="kpi-value">{{ kpi.value }}{% if kpi.unit %}<span class="kpi-unit">{{ kpi.unit }}</span>{% endif %}</div>
+                {% if kpi.hint %}<div class="kpi-hint">{{ kpi.hint }}</div>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if block.summary %}<p class="narrative">{{ block.summary }}</p>{% endif %}
+
+            {% if block.charts %}
+            <div class="chart-grid">
+              {% for chart in block.charts %}
+              <figure class="panel chart-panel">
+                <figcaption>
+                  <span class="chart-title">{{ chart.title }}</span>
+                  {% if chart.subtitle %}<span class="chart-sub">{{ chart.subtitle }}</span>{% endif %}
+                </figcaption>
+                <div class="chart" data-chart-id="{{ chart.id }}"></div>
+              </figure>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if block.primary_table %}
+            <div class="panel table-panel">
+              <h4>{{ block.primary_table.title }}</h4>
+              {{ block.primary_table.html | safe }}
+            </div>
+            {% endif %}
+
+            {% if block.details.tables or block.details.metrics or block.details.full_narrative or block.details.caveats %}
+            <details class="details">
+              <summary>{{ block.details.summary }}</summary>
+              {% if block.details.full_narrative %}
+              <p class="narrative">{{ block.details.full_narrative }}</p>
+              {% endif %}
+              {% for table in block.details.tables %}
+              <div class="table-panel inner">
+                <h4>{{ table.title }}</h4>
+                {{ table.html | safe }}
+              </div>
+              {% endfor %}
+              {% if block.details.metrics %}
+              <dl class="metric-list">
+                {% for item in block.details.metrics %}
+                <dt>{{ item.label }}</dt><dd>{{ item.value }}</dd>
+                {% endfor %}
+              </dl>
+              {% endif %}
+              {% for caveat in block.details.caveats %}<p class="caveat">注：{{ caveat }}</p>{% endfor %}
+            </details>
+            {% endif %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </section>
+    {% endfor %}
+
+    <section id="appendix" class="reveal">
+      <div class="section-head">
+        <span class="section-num">A</span>
+        <h2>附录</h2>
+      </div>
+      <div class="panel">
+        <h3>数据源与许可</h3>
+        <table class="dt">
+          <thead><tr><th>来源</th><th>许可</th><th>署名</th></tr></thead>
+          <tbody>
+          {% for source in appendix.sources %}
+          <tr><td>{{ source.name }}</td><td>{{ source.license }}</td><td>{{ source.attribution }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <h3>标签阈值（执行摘要）</h3>
+        <table class="dt">
+          <thead><tr><th>标签</th><th>阈值</th></tr></thead>
+          <tbody>
+          {% for item in appendix.thresholds %}
+          <tr><td>{{ item.label }}</td><td>{{ item.value }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <h3>缺失维度</h3>
+        {% if appendix.missing %}
+        <ul>{% for item in appendix.missing %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}
+        <p>本次运行所有维度均返回数据。</p>
+        {% endif %}
+        <h3>LLM 使用情况</h3>
+        <p>{{ appendix.llm_text }}</p>
+        <h3>方法学局限</h3>
+        <ul>{% for item in appendix.limitations %}<li>{{ item }}</li>{% endfor %}</ul>
+      </div>
+    </section>
+
+    <footer>
+      <p>数据来源：GTEx v8、DepMap、HPA、cBioPortal TCGA PanCancer Atlas、Open Targets（Reactome/GO、疾病关联、可成药性、安全性、癌症 hallmark、同源基因）、STRING、UniProt、AlphaFold DB、ClinVar。仅供科研参考，不构成临床诊疗建议。</p>
+      <p>图表引擎 ECharts 5.5.1（Apache-2.0）；显示字体 Space Grotesk（SIL OFL 1.1）。报告为自包含单文件，生成后无需联网。</p>
+    </footer>
+  </main>
+</div>
+<script id="chart-data" type="application/json">{{ chart_payload | tojson }}</script>
+<script>{{ echarts_js | safe }}</script>
+<script>{{ dashboard_js | safe }}</script>
+</body>
+</html>
