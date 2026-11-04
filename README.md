@@ -11,7 +11,7 @@ Target Profiling 输入一个基因符号（也支持别名、Ensembl ID、UniPr
 核心特点：
 
 - **离线优先**：组织表达、DepMap、HPA、基因索引等数据预聚合成 Parquet；API 响应全部落盘缓存。报告生成阶段可直接 `--offline` 禁网。
-- **自包含单文件**：ECharts 5.5.1、Space Grotesk 字体、CSS/JS 全部内联，`report.html` 无任何外部链接，可直接交付或归档。
+- **自包含单文件**：ECharts 5.5.1、Space Grotesk 字体、CSS/JS 全部内联，`report.html` 不加载任何外部资源（脚本/样式/字体/图片），可直接交付或归档；仅保留少量数据源锚点链接（带 `rel="noopener"`）。
 - **速读优先**：网页每章按「KPI 条 → 结论 → 双列图表 → 核心表（默认 ≤8 行）→ 可展开明细」组织；PDF 是独立的浅色 4–5 页速览，只保留 8 张核心图和一张结论页。
 - **事实驱动解读**：每个模块先产出结构化 `facts`，文字解读由规则模板生成；LLM 仅允许改写措辞，数字由守卫校验，失败自动回退模板。
 - **严格降级**：单个维度缺数据时标记 `no_data` 并继续出报告，不因单点失败中断全流程。
@@ -74,7 +74,7 @@ uv run target-profile run KRAS --offline --no-llm --format both
 
 ```bash
 uv run pytest
-# 预期：112 passed（全离线 fixture，不访问网络）
+# 预期：125 passed（全离线 fixture，不访问网络）
 ```
 
 ---
@@ -113,7 +113,7 @@ target-profile run GENE [OPTIONS]
 target-profile fetch GENE [--refresh]
 ```
 
-抓取 Open Targets（target/basic/pathways/disease/tractability/safety/cancer）、STRING、ClinVar、cBioPortal TCGA 突变、UniProt、AlphaFold 等响应并写入缓存。`--refresh` 强制重新请求。
+抓取 Open Targets（target/basic/pathways/disease/tractability/safety/cancer）、STRING、ClinVar、cBioPortal TCGA 突变、UniProt、AlphaFold 元数据与逐残基 pLDDT 置信度等响应并写入缓存。`--refresh` 强制重新请求。
 
 ### `data` — 派生本地 Parquet
 
@@ -147,7 +147,8 @@ target-profile version
 
 - 深色仪表盘布局、左侧章节目录与滚动高亮、顶部阅读进度条、基因符号水印
 - 每章统一结构：KPI 条 → 一句结论 → 双列图表 → 核心表（默认 ≤8 行）→ `<details>` 折叠其余表格/指标/caveat/全文
-- 内联 ECharts 图表与原始 JSON（`<script id="chart-data">`），共 18 张图
+- 第 2 章含 AlphaFold 结构置信度面板：KPI（平均 pLDDT / 高置信残基占比）→ 逐残基 pLDDT 曲线（四档分区）→ 四档置信度环形图 → 分级表 → AlphaFold DB/PDB/CIF 外链
+- 内联 ECharts 图表与原始 JSON（`<script id="chart-data">`），共 20 张图
 - 内联 `woff2` 字体，中文正文 + 英文图表标签
 - 附录：数据来源/许可、标签阈值、缺失维度、LLM 使用情况、方法学局限
 
@@ -156,7 +157,7 @@ target-profile version
 仅在 `--format pdf|both` 时生成，为独立的**浅色速读版**（A4，通常 4–5 页）：
 
 - 第 1 页：标题、关键 KPI、执行摘要结论
-- 第 2–5 页：8 张核心图（表达、突变、依赖性、疾病、可成药性、安全性、通路、癌症特征）与精简解读
+- 第 2–5 页：8 张核心图（表达、突变、依赖性、疾病、可成药性、安全性、通路、癌症特征）与精简解读；结论速览表含「结构置信度」行（AlphaFold 平均 pLDDT / 高置信占比 / 覆盖度）
 - 由 `print.html.j2` + `print-speedread.css` 渲染，图表为静态快照（无 tooltip）；导出失败时 HTML 仍保留，CLI 退出码为 `4`
 
 ### `facts.json`
@@ -173,7 +174,8 @@ target-profile version
       "caveats": [],
       "charts": ["mutation-cancers", "mutation-proteins"],
       "narrative": "TCGA PanCancer 合并样本中 KRAS 的突变率为 6.96%……",
-      "label_cards": []
+      "label_cards": [],
+      "links": []
     },
     "cancer": {
       "status": "ok",
@@ -181,20 +183,21 @@ target-profile version
       "caveats": ["cancer: 驱动状态为规则推导……"],
       "charts": ["cancer-hallmarks"],
       "narrative": "……",
-      "label_cards": []
+      "label_cards": [],
+      "links": []
     }
   }
 }
 ```
 
-`modules.<name>.status` 为 `ok` 或 `no_data`；降级原因记录在 `caveats`。数据来源与版本清单存放在独立的 `data/manifest.json`。
+`modules.<name>.status` 为 `ok` 或 `no_data`；降级原因记录在 `caveats`。`modules.basic.links` 可包含 AlphaFold DB/PDB/CIF 锚点及结构元数据 facts（`alphafold_mean_plddt`、四档占比、`alphafold_entry_id`、`alphafold_model_version`、`alphafold_coverage`）。数据来源与版本清单存放在独立的 `data/manifest.json`。
 
 ### 报告章节
 
 | 章节 | 模块 | 内容 |
 | --- | --- | --- |
 | 1. 执行摘要 | `summary` | 结论横幅 + 三组关键证据（阈值公开） |
-| 2. 基因与蛋白基础 | `basic` | 靶点类别、长度、亚细胞定位、AlphaFold |
+| 2. 基因与蛋白基础 | `basic` | 靶点类别、长度、亚细胞定位、AlphaFold 结构置信度（逐残基 pLDDT / 四档分布 / 覆盖度 / 模型版本） |
 | 3. 疾病关联与遗传证据 | `disease` | Open Targets 疾病评分、pLI/LOEUF、ClinVar |
 | 4. 表达 | `expression` | GTEx τ/组织分布、DepMap 细胞系表达、HPA |
 | 5. 突变与变异 | `mutation` | TCGA 泛癌频率、癌种谱、蛋白改变、位点分布 |
@@ -212,7 +215,7 @@ target-profile version
 data/cache/
 ├── <SYMBOL>/          # cBioPortal、STRING、ClinVar
 ├── <ENSG>/            # Open Targets target/basic/pathways/disease/tractability/safety/cancer
-├── _global/           # UniProt、AlphaFold、Open Targets 搜索
+├── _global/           # UniProt、AlphaFold 元数据 + 逐残基 pLDDT、Open Targets 搜索
 └── _llm/              # LLM 解读缓存
 ```
 
@@ -438,8 +441,8 @@ uv run pytest tests/unit/test_print_report.py            # PDF 速览版结构�
 
 - 所有测试使用 `tmp_path` 构造小 Parquet/JSON fixture，不访问网络。
 - 集成测试通过 monkeypatch `socket.socket.connect` 强制断网。
-- 关键断言包括：12 个模块状态、`chart-data` JSON、字体/图表内联、无 `http(s)` 外链、12 个章节锚点、网页双列布局与阅读进度条、PDF 5 页/8 图（降级时 4 页/3 图）、临时 `_print.html` 清理、PDF 失败保留 HTML 且退出码 `4`。
-- 当前基线：**112 passed**。
+- 关键断言包括：12 个模块状态、`chart-data` JSON、字体/图表内联、无外链脚本/样式/字体资源（允许带 `rel="noopener"` 的数据源锚点）、12 个章节锚点、网页双列布局与阅读进度条、AlphaFold 双图与逐残基点数、PDF 5 页/8 图（降级时 4 页/3 图）、临时 `_print.html` 清理、PDF 失败保留 HTML 且退出码 `4`。
+- 当前基线：**125 passed**。
 
 真实数据验收命令：
 
@@ -448,7 +451,7 @@ uv run target-profile run KRAS --offline --no-llm --force
 uv run target-profile run TP53 --offline --no-llm --force
 ```
 
-参考基线：KRAS 泛癌 6.96%、G12D 197 次；TP53 泛癌 35.01%、R175H 150 次。
+参考基线：KRAS 泛癌 6.96%、G12D 197 次、AlphaFold mean pLDDT 91.5（高置信 77.8%）；TP53 泛癌 35.01%、R175H 150 次、AlphaFold mean pLDDT 75.1（高置信 52.7%）。
 
 ---
 
@@ -503,7 +506,7 @@ uv run target-profile data all
 
 ### `offline: missing cache ...`
 
-**原因**：`--offline` 下某维度缓存不存在（常见于新基因或新增维度，例如 `opentargets_cancer.json`）。
+**原因**：`--offline` 下某维度缓存不存在（常见于新基因或新增维度，例如 `opentargets_cancer.json`、`alphafold_plddt_<ACC>.json`）。
 
 **处理**：去掉 `--offline` 先联网跑一次，或先执行：
 
@@ -560,6 +563,7 @@ HTML 始终保留；PDF 为 best-effort，不阻塞主流程。
 ## 已知限制
 
 - **驱动状态为规则推导**：Open Targets v4 未提供 `isCancerDriverGene` 字段。当前以“泛癌突变率 ≥ 阈值”或“命中 cancer hallmark”判定，报告 caveat 中会明确说明。
+- **AlphaFold 为单体计算预测**：pLDDT 是单模型逐残基局部置信度，不代表实验结构精度或残基功能重要性；低 pLDDT 不等于无序；覆盖度不足 95% 时报告会额外提示，且不包含复合物/配体构象。
 - **安全性数据天然稀疏**：无安全事件记录不等于安全；IMPC 小鼠表型仅作参考。
 - **第 12 章为占位**：药物基因组学/文献整合属于后续 Tier3。
 - **互作网络范围有限**：STRING 仅保留高置信（≥0.7）伙伴，缓存通常取 Top100。
@@ -575,7 +579,9 @@ HTML 始终保留；PDF 为 best-effort，不阻塞主流程。
 
 - 设计文档：`docs/superpowers/specs/2026-10-30-target-profiling-design.md`
 - UI 重设计：`docs/superpowers/specs/2026-10-30-target-profiling-ui-redesign-design.md`
+- AlphaFold 面板设计：`docs/superpowers/specs/2026-11-04-alphafold-confidence-panel-design.md`
 - 报告重设计实施计划：`docs/superpowers/plans/2026-11-03-report-redesign.md`
+- AlphaFold 面板实施计划：`docs/superpowers/plans/2026-11-04-alphafold-confidence-panel.md`
 - 其他实施计划：`docs/superpowers/plans/`
 - Apache ECharts：<https://echarts.apache.org/>
 - Open Targets Platform：<https://platform.opentargets.org/>
@@ -589,4 +595,4 @@ HTML 始终保留；PDF 为 best-effort，不阻塞主流程。
 
 ---
 
-_Last updated: 2026-11-03_
+_Last updated: 2026-11-04_

@@ -41,6 +41,7 @@
   .chip-info { color: #1f4f8f !important; border-color: #bcd1ee !important; }
   .placeholder-line { background: #f4faf9 !important; color: #475569 !important; }
   .caveat { color: #7a4a06 !important; background: #fff8ea !important; border-left-color: #c98a12 !important; }
+  .block-links { display: none !important; }
   .chart-panel, .chart, img.chart-snapshot { break-inside: avoid; page-break-inside: avoid; }
   .chart { display: none !important; }
   img.chart-snapshot { width: 100%; margin: 4px 0; }

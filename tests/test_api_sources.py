@@ -1,6 +1,6 @@
 import json
 
-from target_profile.api.alphafold import alphafold_prediction
+from target_profile.api.alphafold import alphafold_confidence, alphafold_prediction
 from target_profile.api.cache import CachedFetcher
 from target_profile.api.stringdb import interaction_partners
 from target_profile.api.uniprot import uniprot_record
@@ -47,3 +47,30 @@ def test_alphafold_reads_cache(tmp_path):
 def test_alphafold_without_accession_returns_none(tmp_path):
     fetcher = CachedFetcher(tmp_path, offline=True)
     assert alphafold_prediction(None, fetcher) is None
+
+
+def test_alphafold_confidence_reads_cache(tmp_path):
+    global_dir = tmp_path / "_global"
+    global_dir.mkdir(parents=True)
+    (global_dir / "alphafold_plddt_P01116.json").write_text(
+        json.dumps(
+            {
+                "residueNumber": [1, 2],
+                "confidenceScore": [90.0, 91.5],
+                "confidenceCategory": ["A", "A"],
+            }
+        )
+    )
+    fetcher = CachedFetcher(tmp_path, offline=True)
+    confidence = alphafold_confidence(
+        "P01116",
+        {"plddtDocUrl": "https://alphafold.ebi.ac.uk/files/confidence.json"},
+        fetcher,
+    )
+    assert confidence["confidenceScore"] == [90.0, 91.5]
+
+
+def test_alphafold_confidence_without_url_returns_none(tmp_path):
+    fetcher = CachedFetcher(tmp_path, offline=True)
+    assert alphafold_confidence("P01116", {}, fetcher) is None
+    assert alphafold_confidence(None, None, fetcher) is None

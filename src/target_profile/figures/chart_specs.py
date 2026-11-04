@@ -629,6 +629,190 @@ def build_cancer(result: ModuleResult) -> list[ChartSpec]:
     ]
 
 
+_AF_BANDS = (
+    ("Very high (≥90)", 90, 100, "rgba(85,214,190,.08)"),
+    ("Confident (70–90)", 70, 90, "rgba(110,168,254,.07)"),
+    ("Low (50–70)", 50, 70, "rgba(240,176,83,.07)"),
+    ("Very low (<50)", 0, 50, "rgba(242,125,154,.06)"),
+)
+
+_AF_COLORS = {
+    "Very high (≥90)": "#55d6be",
+    "Confident (70–90)": "#6ea8fe",
+    "Low (50–70)": "#f0b053",
+    "Very low (<50)": "#f27d9a",
+}
+
+
+def build_basic(result: ModuleResult) -> list[ChartSpec]:
+    charts: list[ChartSpec] = []
+
+    plddt = result.tables.get("alphafold_plddt")
+    if isinstance(plddt, pd.DataFrame) and not plddt.empty:
+        frame = plddt.dropna(subset=["residue", "plddt"])
+        data = [
+            [int(row.residue), round(float(row.plddt), 1)]
+            for row in frame.itertuples(index=False)
+        ]
+        if data:
+            entry = str(result.facts.get("alphafold_entry_id") or "")
+            version = str(result.facts.get("alphafold_model_version") or "")
+            subtitle = "Source: AlphaFold DB"
+            if entry:
+                subtitle += f" · {entry}"
+            if version:
+                subtitle += f" · {version}"
+            bands = [
+                [
+                    {
+                        "name": name,
+                        "yAxis": high,
+                        "itemStyle": {"color": color},
+                        "label": {
+                            "show": True,
+                            "position": "insideTopLeft",
+                            "color": "#8b9bb0",
+                            "fontSize": 10,
+                        },
+                    },
+                    {"yAxis": low},
+                ]
+                for name, high, low, color in _AF_BANDS
+            ]
+            option = {
+                "grid": {
+                    "left": 48,
+                    "right": 16,
+                    "top": 30,
+                    "bottom": 30,
+                    "containLabel": True,
+                },
+                "tooltip": {"trigger": "axis", "axisPointer": {"type": "line"}},
+                "xAxis": {
+                    "type": "value",
+                    "name": "Residue",
+                    "min": 1,
+                    "nameTextStyle": {"color": "#8b9bb0"},
+                    "axisLabel": {"color": "#8b9bb0"},
+                    "splitLine": {"lineStyle": {"color": "rgba(120,160,200,.12)"}},
+                },
+                "yAxis": {
+                    "type": "value",
+                    "name": "pLDDT",
+                    "min": 0,
+                    "max": 100,
+                    "nameTextStyle": {"color": "#8b9bb0"},
+                    "axisLabel": {"color": "#8b9bb0"},
+                    "splitLine": {"lineStyle": {"color": "rgba(120,160,200,.12)"}},
+                },
+                "series": [
+                    {
+                        "type": "line",
+                        "name": "pLDDT",
+                        "data": data,
+                        "showSymbol": False,
+                        "lineStyle": {"width": 1.6, "color": "#55d6be"},
+                        "areaStyle": {
+                            "color": {
+                                "type": "linear",
+                                "x": 0,
+                                "y": 0,
+                                "x2": 0,
+                                "y2": 1,
+                                "colorStops": [
+                                    {"offset": 0, "color": "rgba(85,214,190,.28)"},
+                                    {"offset": 1, "color": "rgba(85,214,190,.02)"},
+                                ],
+                            }
+                        },
+                        "markArea": {"silent": True, "data": bands},
+                    }
+                ],
+            }
+            charts.append(
+                ChartSpec(
+                    id="alphafold-residue",
+                    title="AlphaFold per-residue pLDDT",
+                    subtitle=subtitle,
+                    option=option,
+                )
+            )
+
+    categories = result.tables.get("alphafold_categories")
+    if isinstance(categories, pd.DataFrame) and not categories.empty:
+        data = [
+            {
+                "name": str(row.category),
+                "value": round(float(row.pct), 1),
+                "itemStyle": {"color": _AF_COLORS.get(str(row.category), PALETTE[0])},
+            }
+            for row in categories.itertuples(index=False)
+        ]
+        mean = result.facts.get("alphafold_mean_plddt")
+        graphic = []
+        if mean is not None:
+            graphic = [
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "33%",
+                    "style": {
+                        "text": f"{float(mean):.1f}",
+                        "fill": "#e7eef7",
+                        "fontSize": 26,
+                        "fontWeight": 700,
+                        "textAlign": "center",
+                    },
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "43%",
+                    "style": {
+                        "text": "mean pLDDT",
+                        "fill": "#8b9bb0",
+                        "fontSize": 11,
+                        "textAlign": "center",
+                    },
+                },
+            ]
+        option = {
+            "tooltip": {"trigger": "item"},
+            "legend": {
+                "bottom": 0,
+                "textStyle": {"color": "#8b9bb0", "fontSize": 10},
+                "itemWidth": 10,
+                "itemHeight": 10,
+            },
+            "graphic": graphic,
+            "series": [
+                {
+                    "type": "pie",
+                    "radius": ["52%", "76%"],
+                    "center": ["50%", "44%"],
+                    "avoidLabelOverlap": True,
+                    "label": {
+                        "formatter": "{b}\n{c}%",
+                        "color": "#c9d6e5",
+                        "fontSize": 11,
+                    },
+                    "labelLine": {"lineStyle": {"color": "rgba(120,160,200,.35)"}},
+                    "data": data,
+                }
+            ],
+        }
+        charts.append(
+            ChartSpec(
+                id="alphafold-confidence",
+                title="AlphaFold confidence distribution",
+                subtitle="Source: AlphaFold DB",
+                option=option,
+            )
+        )
+
+    return charts
+
+
 def build_comparative(result: ModuleResult) -> list[ChartSpec]:
     frame = result.tables.get("homologues")
     if isinstance(frame, pd.DataFrame) and not frame.empty:

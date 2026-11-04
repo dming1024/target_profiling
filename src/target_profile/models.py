@@ -35,6 +35,7 @@ class ModuleResult:
     charts: list[ChartSpec] = field(default_factory=list)
     narrative: str | None = None
     label_cards: list[dict[str, Any]] = field(default_factory=list)
+    links: list[dict[str, str]] = field(default_factory=list)
 
     def degrade(self, reason: str) -> "ModuleResult":
         self.status = "no_data"

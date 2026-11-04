@@ -18,3 +18,24 @@ def alphafold_prediction(
         refresh=refresh,
     )
     return rows[0] if rows else None
+
+
+def alphafold_confidence(
+    acc: str | None,
+    prediction: dict[str, Any] | None,
+    fetcher: CachedFetcher,
+    refresh: bool = False,
+) -> dict[str, Any] | None:
+    """Fetch the per-residue pLDDT document referenced by the prediction entry."""
+    if not acc or not prediction:
+        return None
+    url = prediction.get("plddtDocUrl")
+    if not url:
+        return None
+    return fetcher.request_json(
+        f"alphafold_plddt_{acc}",
+        "GET",
+        url,
+        gene="_global",
+        refresh=refresh,
+    )

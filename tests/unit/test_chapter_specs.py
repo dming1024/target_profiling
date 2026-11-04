@@ -108,3 +108,29 @@ def test_kpi_values_use_chinese_labels():
     values = {card["label"]: card["value"] for card in cards}
     assert values["可成药性"] == "是"
     assert values["最高临床阶段"] == "已批准"
+
+
+def test_alphafold_kpis_and_labels():
+    from target_profile.models import ModuleResult
+    from target_profile.report.chapter_specs import kpi_cards
+
+    module = ModuleResult(
+        name="basic",
+        facts={
+            "protein_length": 393,
+            "target_class": "Transcription factor",
+            "subcellular_locations": "Nucleus",
+            "alphafold_mean_plddt": 75.1,
+            "alphafold_very_high_pct": 52.7,
+        },
+    )
+    cards = kpi_cards(module)
+    labels = {card["label"]: card["value"] for card in cards}
+    assert labels["平均 pLDDT"] == "75.100"
+    assert labels["高置信残基占比 (≥90)"] == "52.70%"
+
+    assert format_value("pct", 52.7) == "52.70%"
+    assert FACT_LABELS["alphafold_entry_id"] == "AlphaFold 模型 ID"
+    assert FACT_LABELS["alphafold_coverage"] == "结构覆盖范围"
+    assert COLUMN_LABELS["alphafold_categories"]["category"] == "置信度等级"
+    assert table_title("alphafold_categories") == "AlphaFold 置信度分级"

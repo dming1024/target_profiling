@@ -1,9 +1,70 @@
-from target_profile.api.alphafold import alphafold_prediction
+import pandas as pd
+
+from target_profile.api.alphafold import alphafold_confidence, alphafold_prediction
 from target_profile.api.cache import CachedFetcher
 from target_profile.api.opentargets import target_basic
 from target_profile.api.uniprot import uniprot_record
 from target_profile.config import Settings
 from target_profile.models import GeneContext, ModuleResult
+
+CONFIDENCE_CATEGORIES = (
+    ("Very high (≥90)", "fractionPlddtVeryHigh", "A", "alphafold_very_high_pct"),
+    ("Confident (70–90)", "fractionPlddtConfident", "B", "alphafold_confident_pct"),
+    ("Low (50–70)", "fractionPlddtLow", "C", "alphafold_low_pct"),
+    ("Very low (<50)", "fractionPlddtVeryLow", "D", "alphafold_very_low_pct"),
+)
+
+
+def _coverage(
+    prediction: dict, protein_length: int | None
+) -> tuple[str | None, float | None]:
+    start = prediction.get("uniprotStart") or prediction.get("sequenceStart")
+    end = prediction.get("uniprotEnd") or prediction.get("sequenceEnd")
+    if start is None or end is None:
+        return None, None
+    span = f"{start}–{end} aa"
+    if not protein_length:
+        return span, None
+    pct = (int(end) - int(start) + 1) / int(protein_length) * 100
+    return f"{span} ({pct:.0f}%)", pct
+
+
+def _confidence_tables(
+    prediction: dict, confidence: dict | None
+) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+    counts: dict[str, int] = {}
+    if confidence:
+        for category in confidence.get("confidenceCategory") or []:
+            counts[str(category)] = counts.get(str(category), 0) + 1
+
+    rows = []
+    for label, fraction_key, code, _ in CONFIDENCE_CATEGORIES:
+        fraction = prediction.get(fraction_key)
+        if fraction is None:
+            continue
+        rows.append(
+            {
+                "category": label,
+                "residues": counts.get(code),
+                "pct": round(float(fraction) * 100, 1),
+            }
+        )
+    categories = pd.DataFrame(rows) if rows else None
+
+    plddt = None
+    if confidence:
+        residues = confidence.get("residueNumber") or []
+        scores = confidence.get("confidenceScore") or []
+        cats = confidence.get("confidenceCategory") or []
+        if residues and len(residues) == len(scores):
+            plddt = pd.DataFrame(
+                {
+                    "residue": [int(value) for value in residues],
+                    "plddt": [float(value) for value in scores],
+                    "category": list(cats[: len(residues)]) if cats else [""] * len(residues),
+                }
+            )
+    return categories, plddt
 
 
 def _uniprot_function(record: dict) -> str | None:
@@ -83,10 +144,64 @@ def analyze_basic(
     except Exception:
         prediction = None
     result.facts["alphafold_available"] = "Yes" if prediction else "No"
-    if prediction and prediction.get("globalMetricValue") is not None:
-        result.facts["alphafold_mean_plddt"] = round(
-            float(prediction["globalMetricValue"]), 1
+    if prediction:
+        if prediction.get("globalMetricValue") is not None:
+            result.facts["alphafold_mean_plddt"] = round(
+                float(prediction["globalMetricValue"]), 1
+            )
+        if prediction.get("entryId"):
+            result.facts["alphafold_entry_id"] = prediction["entryId"]
+        if prediction.get("latestVersion") is not None:
+            result.facts["alphafold_model_version"] = f"v{prediction['latestVersion']}"
+
+        coverage_text, coverage_pct = _coverage(
+            prediction, result.facts.get("protein_length")
         )
+        if coverage_text:
+            result.facts["alphafold_coverage"] = coverage_text
+
+        for _, fraction_key, _, fact_key in CONFIDENCE_CATEGORIES:
+            fraction = prediction.get(fraction_key)
+            if fraction is not None:
+                result.facts[fact_key] = round(float(fraction) * 100, 1)
+
+        confidence = None
+        try:
+            confidence = alphafold_confidence(ctx.uniprot_id, prediction, fetcher)
+        except Exception:
+            confidence = None
+
+        categories, plddt = _confidence_tables(prediction, confidence)
+        if categories is not None and not categories.empty:
+            result.tables["alphafold_categories"] = categories
+        if plddt is not None and not plddt.empty:
+            result.tables["alphafold_plddt"] = plddt
+
+        if confidence is None:
+            result.caveats.append(
+                "未找到逐残基置信度缓存，本面板仅展示分段占比；运行 fetch 可补齐。"
+            )
+        result.caveats.append(
+            "AlphaFold pLDDT 是单模型逐残基置信度，不代表实验结构精度或残基功能重要性；"
+            "低 pLDDT 不等于无序。"
+        )
+        if coverage_pct is not None and coverage_pct < 95:
+            result.caveats.append(
+                f"AlphaFold 模型仅覆盖 UniProt 序列的 {coverage_pct:.0f}%，"
+                "未覆盖区域没有结构置信度。"
+            )
+
+        links = [
+            {
+                "label": "AlphaFold DB",
+                "url": f"https://alphafold.ebi.ac.uk/entry/{ctx.uniprot_id}",
+            }
+        ]
+        for label, key in (("PDB", "pdbUrl"), ("CIF", "cifUrl")):
+            url = prediction.get(key)
+            if url:
+                links.append({"label": label, "url": url})
+        result.links = links
 
     if not details and not record:
         return result.degrade("basic: target metadata unavailable")

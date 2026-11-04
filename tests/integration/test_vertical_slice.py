@@ -143,7 +143,33 @@ def _build_home(tmp_path):
             )
         )
         (global_dir / f"alphafold_{acc}.json").write_text(
-            json.dumps([{"globalMetricValue": 90.0}])
+            json.dumps(
+                [
+                    {
+                        "globalMetricValue": 90.0,
+                        "fractionPlddtVeryHigh": 0.8,
+                        "fractionPlddtConfident": 0.1,
+                        "fractionPlddtLow": 0.05,
+                        "fractionPlddtVeryLow": 0.05,
+                        "entryId": f"AF-{acc}-F1",
+                        "latestVersion": 6,
+                        "uniprotStart": 1,
+                        "uniprotEnd": 189,
+                        "plddtDocUrl": f"https://example/{acc}/confidence.json",
+                        "pdbUrl": f"https://example/{acc}/model.pdb",
+                        "cifUrl": f"https://example/{acc}/model.cif",
+                    }
+                ]
+            )
+        )
+        (global_dir / f"alphafold_plddt_{acc}.json").write_text(
+            json.dumps(
+                {
+                    "residueNumber": list(range(1, 11)),
+                    "confidenceScore": [90.0 + index for index in range(10)],
+                    "confidenceCategory": ["A"] * 10,
+                }
+            )
         )
         (ensg_dir / "opentargets_disease.json").write_text(
             json.dumps(
@@ -289,8 +315,9 @@ def test_full_chain_offline(tmp_path, monkeypatch):
         assert 'id="chart-data"' in html
         assert "echarts" in html.lower()
         assert "data:font/woff2;base64," in html
-        assert 'src="http' not in html
-        assert 'href="http' not in html
+        assert not re.search(r'<script[^>]+src\s*=\s*["\']https?://', html)
+        assert not re.search(r'<link[^>]+href\s*=\s*["\']https?://', html)
+        assert "AlphaFold DB" in html
         assert facts["modules"]["expression"]["status"] == "ok"
         assert facts["modules"]["mutation"]["status"] == "ok"
         assert facts["modules"]["dependency"]["status"] == "ok"
@@ -303,6 +330,15 @@ def test_full_chain_offline(tmp_path, monkeypatch):
         assert facts["modules"]["cancer"]["status"] == "ok"
         assert facts["modules"]["comparative"]["status"] == "ok"
         assert facts["modules"]["summary"]["status"] == "ok"
+        assert "alphafold-residue" in html
+        assert "alphafold-confidence" in html
+        assert "AlphaFold per-residue pLDDT" in html
+        assert "AlphaFold 置信度分级" in html
+        assert (
+            facts["modules"]["basic"]["facts"]["alphafold_entry_id"]
+            == f"AF-{facts['gene']['uniprot_id']}-F1"
+        )
+        assert facts["modules"]["basic"]["facts"]["alphafold_model_version"] == "v6"
 
 
 def test_report_is_self_contained(tmp_path, monkeypatch):
@@ -315,7 +351,9 @@ def test_report_is_self_contained(tmp_path, monkeypatch):
 
     assert "echarts" in html.lower()
     assert "data:font/woff2;base64," in html
-    assert not re.search(r'(src|href)\s*=\s*["\']https?://', html)
+    assert not re.search(r'<script[^>]+src\s*=\s*["\']https?://', html)
+    assert not re.search(r'<link[^>]+href\s*=\s*["\']https?://', html)
+    assert 'rel="noopener"' in html
     assert "url(http" not in html
     assert "@import url(http" not in html
 

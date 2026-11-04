@@ -77,6 +77,8 @@ LIMITATIONS = [
     "可成药性与安全维度天然稀疏；无安全记录不代表安全。",
     "癌症驱动状态为规则推导（泛癌突变率与 Open Targets hallmark），非直接注释。",
     "PTM 位点仅来自 UniProt 人工审阅注释，不代表全部已知修饰。",
+    "AlphaFold 结构为计算预测（monomer），pLDDT 仅反映局部置信度；"
+    "不得据此推断实验构象、功能位点或临床意义。",
     "PDF 中的图表为交互图的静态快照，不保留 tooltip 与缩放能力。",
 ]
 
@@ -126,6 +128,7 @@ def _block(module: ModuleResult, thresholds: dict[str, float] | None = None) -> 
             "summary": None,
             "charts": [],
             "kpis": [],
+            "links": [],
             "primary_table": None,
             "details": {
                 "summary": "展开明细",
@@ -137,6 +140,7 @@ def _block(module: ModuleResult, thresholds: dict[str, float] | None = None) -> 
         }
 
     spec = MODULE_SPECS.get(module.name, ModuleSpec())
+    hidden = set(spec.hidden_tables)
     tables = []
     primary_table = None
     seen = set()
@@ -164,7 +168,7 @@ def _block(module: ModuleResult, thresholds: dict[str, float] | None = None) -> 
             seen.add(key)
 
     for key, frame in module.tables.items():
-        if key in seen or not hasattr(frame, "head") or frame.empty:
+        if key in seen or key in hidden or not hasattr(frame, "head") or frame.empty:
             continue
         tables.append(
             {
@@ -190,6 +194,7 @@ def _block(module: ModuleResult, thresholds: dict[str, float] | None = None) -> 
             for spec in module.charts
         ],
         "kpis": kpi_cards(module),
+        "links": list(module.links),
         "primary_table": primary_table,
         "details": {
             "summary": details_summary(tables, metrics, full_narrative),
@@ -278,6 +283,14 @@ def _summary_view(by_name: dict[str, ModuleResult], thresholds: dict[str, float]
             ],
         },
     ]
+
+    af_mean = _number_for_summary(facts("basic", "alphafold_mean_plddt"))
+    if af_mean is not None:
+        af_value = f"{af_mean:.1f}"
+        af_high = _number_for_summary(facts("basic", "alphafold_very_high_pct"))
+        if af_high is not None:
+            af_value += f" · 高置信 {af_high:.1f}%"
+        groups[0]["items"].append({"label": "AlphaFold pLDDT", "value": af_value})
 
     return {
         "verdict": {"name": name, "subtitle": str(facts("basic", "protein_name") or ""), "line": line, "chips": chips},
@@ -499,6 +512,7 @@ def render_report(
                 "charts": [spec.id for spec in module.charts],
                 "narrative": module.narrative,
                 "label_cards": module.label_cards,
+                "links": module.links,
             }
             for module in modules
         },
@@ -517,6 +531,35 @@ def _cover_kpis(summary_view: dict[str, Any]) -> list[dict[str, str]]:
         for item in group["items"][:2]:
             cards.append({"label": item["label"], "value": item["value"]})
     return cards[:4]
+
+
+def _alphafold_speed_row(block: dict[str, Any]) -> dict[str, str] | None:
+    kpis = {item["label"]: item["value"] for item in block["kpis"]}
+    mean = kpis.get("平均 pLDDT")
+    if not mean:
+        return None
+    value = mean
+    high = kpis.get("高置信残基占比 (≥90)")
+    if high:
+        value = f"{mean} (高置信 {high})"
+    coverage = next(
+        (
+            item["value"]
+            for item in block["details"]["metrics"]
+            if item["label"] == "结构覆盖范围"
+        ),
+        "",
+    )
+    status = ""
+    if coverage:
+        pct = coverage.rsplit("(", 1)[-1].rstrip(")") if "(" in coverage else coverage
+        status = f"覆盖 {pct}"
+    return {
+        "title": "结构置信度",
+        "metric": "AlphaFold 平均 pLDDT",
+        "value": value,
+        "status": status,
+    }
 
 
 def _speed_rows(sections: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -539,8 +582,12 @@ def _speed_rows(sections: list[dict[str, Any]]) -> list[dict[str, str]]:
                     "status": status,
                 }
             )
+            if block["id"] == "basic":
+                af_row = _alphafold_speed_row(block)
+                if af_row:
+                    rows.append(af_row)
     rows.append({"title": "扩展证据", "metric": "PGx / 文献 / GWAS", "value": "后续版本", "status": ""})
-    return rows[:12]
+    return rows[:13]
 
 
 _PRINT_COLOR_MAP = {

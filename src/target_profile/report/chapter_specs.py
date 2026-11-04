@@ -28,13 +28,22 @@ class ModuleSpec:
     secondary_tables: tuple[str, ...] = ()
     primary_charts: tuple[str, ...] = ()
     table_rows: int = 8
+    hidden_tables: tuple[str, ...] = ()
 
 
 MODULE_SPECS: dict[str, ModuleSpec] = {
     "summary": ModuleSpec(),
     "basic": ModuleSpec(
-        kpi=("protein_length", "target_class", "subcellular_locations", "alphafold_mean_plddt"),
+        kpi=(
+            "protein_length",
+            "target_class",
+            "subcellular_locations",
+            "alphafold_mean_plddt",
+            "alphafold_very_high_pct",
+        ),
         status="target_class",
+        secondary_tables=("alphafold_categories",),
+        hidden_tables=("alphafold_plddt",),
     ),
     "disease": ModuleSpec(
         kpi=("disease_count", "top_disease", "clinvar_total", "constrained"),
@@ -148,6 +157,7 @@ TABLE_TITLES: dict[str, str] = {
     "mouse_phenotypes": "小鼠表型",
     "expression_breadth": "表达广度",
     "homologues": "同源基因",
+    "alphafold_categories": "AlphaFold 置信度分级",
 }
 
 COLUMN_LABELS: dict[str, dict[str, str]] = {
@@ -193,6 +203,7 @@ COLUMN_LABELS: dict[str, dict[str, str]] = {
     "mouse_phenotypes": {"phenotype_class": "表型类别", "models": "模型数"},
     "expression_breadth": {"tissue": "组织", "median": "中位 TPM"},
     "homologues": {"species": "物种", "type": "同源类型", "identity": "一致性 (%)", "target_gene_id": "目标基因 ID"},
+    "alphafold_categories": {"category": "置信度等级", "residues": "残基数", "pct": "占比"},
 }
 
 VALUE_LABELS: dict[str, dict[str, str]] = {
@@ -264,6 +275,13 @@ FACT_LABELS: dict[str, str] = {
     "protein_name": "UniProt 蛋白名",
     "alphafold_available": "AlphaFold 结构",
     "alphafold_mean_plddt": "平均 pLDDT",
+    "alphafold_very_high_pct": "高置信残基占比 (≥90)",
+    "alphafold_confident_pct": "可信残基占比 (70–90)",
+    "alphafold_low_pct": "低置信残基占比 (50–70)",
+    "alphafold_very_low_pct": "极低置信残基占比 (<50)",
+    "alphafold_entry_id": "AlphaFold 模型 ID",
+    "alphafold_model_version": "AlphaFold 模型版本",
+    "alphafold_coverage": "结构覆盖范围",
     "n_pathways": "Reactome 通路数",
     "top_level_term": "主要通路类别",
     "top_level_terms": "Top 通路类别",
@@ -333,7 +351,7 @@ def table_title(table_key: str, row_count: int | None = None, primary: bool = Fa
 
 _PCT_KEYS = {
     "overall_freq_pct", "top_cancer_freq_pct", "pan_cancer_freq_pct",
-    "freq_pct", "expression_freq_pct",
+    "freq_pct", "expression_freq_pct", "pct",
 }
 _THREE_DECIMAL_KEYS = {
     "score", "median", "mean", "effect", "oe", "oe_upper", "percentile",

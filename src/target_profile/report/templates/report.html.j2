@@ -128,6 +128,14 @@
             </div>
             {% endif %}
 
+            {% if block.links %}
+            <div class="block-links">
+              {% for link in block.links %}
+              <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.label }}</a>
+              {% endfor %}
+            </div>
+            {% endif %}
+
             {% if block.primary_table %}
             <div class="panel table-panel">
               <h4>{{ block.primary_table.title }}</h4>

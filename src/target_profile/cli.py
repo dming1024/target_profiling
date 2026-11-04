@@ -17,7 +17,7 @@ from target_profile.analysis.ptm import analyze_ptm
 from target_profile.analysis.safety import analyze_safety
 from target_profile.analysis.summary import build_summary
 from target_profile.analysis.tractability import analyze_tractability
-from target_profile.api.alphafold import alphafold_prediction
+from target_profile.api.alphafold import alphafold_confidence, alphafold_prediction
 from target_profile.api.clinvar import fetch_clinvar
 from target_profile.api.opentargets import (
     target_basic,
@@ -34,6 +34,7 @@ from target_profile.config import load_settings
 from target_profile.data_prep.lake import DERIVERS, derive_all
 from target_profile.errors import DataMissing, GeneNotFound
 from target_profile.figures.chart_specs import (
+    build_basic,
     build_cancer,
     build_comparative,
     build_dependency,
@@ -66,6 +67,7 @@ MODULES = [
 ]
 
 BUILDERS = {
+    "basic": build_basic,
     "expression": build_expression,
     "mutation": build_mutation,
     "dependency": build_dependency,
@@ -142,6 +144,14 @@ def fetch(
     if ctx.uniprot_id:
         steps.append(("UniProt record", lambda: uniprot_record(ctx.uniprot_id, fetcher, refresh=refresh)))
         steps.append(("AlphaFold prediction", lambda: alphafold_prediction(ctx.uniprot_id, fetcher, refresh=refresh)))
+
+        def _fetch_alphafold_confidence() -> object:
+            prediction = alphafold_prediction(ctx.uniprot_id, fetcher, refresh=refresh)
+            return alphafold_confidence(
+                ctx.uniprot_id, prediction, fetcher, refresh=refresh
+            )
+
+        steps.append(("AlphaFold confidence", _fetch_alphafold_confidence))
     if ctx.entrez_id:
         steps.append(
             (
